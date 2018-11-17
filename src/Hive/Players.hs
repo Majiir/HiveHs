@@ -10,6 +10,8 @@ import Data.List (sortOn, maximumBy, foldl', intercalate)
 import Data.Ord (comparing)
 import Hive.Game
 import Hive.Coordinate
+import System.IO (hFlush, stdout)
+import Control.Parallel.Strategies
 
 type Agent m = GameState -> [(Move, GameState)] -> m (Move, GameState)
 
@@ -34,10 +36,12 @@ playGame white black =
                             if null (moves g)
                                 then do
                                     liftIO $ putStrLn ((show (nextTurn g)) ++ ": No moves. Passing.")
+                                    liftIO $ hFlush stdout
                                     step (advanceTurn g)
                                 else do
                                     (m, g') <- play g
                                     liftIO $ putStrLn ((show (nextTurn g)) ++ ": " ++ (showMove g g' m))
+                                    liftIO $ hFlush stdout
                                     let p = nextTurn g
                                     return $ Just ((p, m, g'), g')
         unfoldrM step newGame
@@ -123,7 +127,7 @@ balancedPlayer g m = do
 thinkingPlayer :: (Monad m) => Agent m
 thinkingPlayer g m = do
     let o = opponent . nextTurn . snd . head $ m
-    let score g = length (moves g) - (min 1 (aroundQueen g))
+    let score g = length (moves g) - 4 * (min 1 (aroundQueen g))
     let score' g = (score g) - (score (advanceTurn g))
     return $ maximumOn (searchAhead (fromIntegral . score') o 3 . snd) m
 
@@ -140,18 +144,18 @@ searchAhead f o 0 g = -- Score the given gamestate.
             then x
             else negate x
 searchAhead f o c g =
-    if null (moves g)
+    let mov = moves g in
+    if null mov
         then searchAhead f o (c - 1) (advanceTurn g)
         else
             let 
-                m = fmap snd (moves g)
-                scored = fmap (\x -> (x, f x)) m
+                m = fmap snd mov
                 m' = take 2 . sortOn (if o == nextTurn g then (negate . f) else f) $ m
                 s = searchAhead f o (c - 1)
             in
                 if o == nextTurn g
-                    then maximum (fmap s m')
-                    else minimum (fmap s m')
+                    then maximum (map s m')
+                    else minimum (map s m')
 
 maximumOn :: (Ord a, Foldable t) => (b -> a) -> t b -> b
 maximumOn = maximumBy . comparing

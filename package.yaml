@@ -25,6 +25,7 @@ dependencies:
 - mtl
 - MonadRandom
 - random
+- parallel
 
 library:
   source-dirs: src
